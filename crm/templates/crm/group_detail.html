@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}{{ g.name }}{% endblock %}
+{% block page_title %}Group: {{ g.name }}{% endblock %}
+{% block content %}
+<div class="row g-3">
+<div class="col-md-4">
+  <div class="card"><div class="card-header bg-white d-flex justify-content-between"><strong>Details</strong>
+    <div>
+      {% if perms.crm.change_group %}<a class="btn btn-sm btn-outline-primary" href="{% url 'group_edit' g.pk %}"><i class="bi bi-pencil"></i></a>{% endif %}
+      {% if perms.crm.delete_group %}<form method="post" action="{% url 'group_delete' g.pk %}" class="d-inline" onsubmit="return confirm('Delete group?')">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button></form>{% endif %}
+    </div>
+  </div>
+    <div class="card-body">
+      <table class="table table-sm">
+        <tr><th>Service</th><td>{{ g.get_service_type_display }}</td></tr>
+        <tr><th>Group Head</th><td>{{ g.group_head.full_name|default:"-" }}</td></tr>
+        <tr><th>Destination</th><td>{{ g.destination|default:"-" }}</td></tr>
+        <tr><th>Departure</th><td>{{ g.departure_date|default:"-" }}</td></tr>
+        <tr><th>Return</th><td>{{ g.return_date|default:"-" }}</td></tr>
+        <tr><th>Members</th><td>{{ g.member_count }}</td></tr>
+        <tr><th>Notes</th><td>{{ g.notes|default:"-"|linebreaksbr }}</td></tr>
+      </table>
+    </div></div>
+</div>
+
+<div class="col-md-8">
+  <div class="card"><div class="card-header bg-white"><strong>Members</strong></div>
+  <div class="card-body">
+    {% if perms.crm.add_groupmembership %}
+    <form method="post" action="{% url 'group_add_member' g.pk %}" class="row g-2 mb-3">{% csrf_token %}
+      <div class="col-md-7">{{ add_form.passenger }}</div>
+      <div class="col-md-3">{{ add_form.role }}</div>
+      <div class="col-md-2"><button class="btn btn-primary w-100"><i class="bi bi-plus"></i> Add</button></div>
+    </form>{% endif %}
+    <table class="table table-sm">
+      <thead><tr><th>#</th><th>Name</th><th>Passport</th><th>Mobile</th><th>Role</th><th></th></tr></thead>
+      <tbody>
+      {% for m in g.groupmembership_set.all %}
+        <tr>
+          <td>{{ forloop.counter }}</td>
+          <td><a href="{{ m.passenger.get_absolute_url }}">{{ m.passenger.full_name }}</a></td>
+          <td>{{ m.passenger.passport_number }}</td>
+          <td>{{ m.passenger.mobile }}</td>
+          <td>{{ m.role }}</td>
+          <td>{% if perms.crm.delete_groupmembership %}
+            <form method="post" action="{% url 'group_remove_member' g.pk m.passenger_id %}" onsubmit="return confirm('Remove?')">{% csrf_token %}
+              <button class="btn btn-sm btn-outline-danger"><i class="bi bi-x-lg"></i></button>
+            </form>{% endif %}
+          </td>
+        </tr>
+      {% empty %}<tr><td colspan="6" class="text-muted text-center">No members yet.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div></div>
+</div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+document.querySelectorAll('input,select,textarea').forEach(el=>{
+  if(!el.classList.contains('form-control')&&!el.classList.contains('form-select')&&!el.classList.contains('btn-close')){
+    if(el.tagName==='SELECT') el.classList.add('form-select','form-select-sm');
+    else el.classList.add('form-control','form-control-sm');
+  }
+});
+</script>
+{% endblock %}

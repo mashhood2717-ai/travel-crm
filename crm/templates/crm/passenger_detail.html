@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}{{ p.full_name }}{% endblock %}
+{% block page_title %}Passenger: {{ p.full_name }}{% endblock %}
+{% block content %}
+<div class="row g-3">
+  <div class="col-md-6">
+    <div class="card"><div class="card-header bg-white d-flex justify-content-between">
+      <strong>Profile</strong>
+      <div>
+        {% if perms.crm.change_passenger %}<a class="btn btn-sm btn-outline-primary" href="{% url 'passenger_edit' p.pk %}"><i class="bi bi-pencil"></i> Edit</a>{% endif %}
+        {% if perms.crm.delete_passenger %}
+        <form method="post" action="{% url 'passenger_delete' p.pk %}" class="d-inline" onsubmit="return confirm('Delete passenger?')">{% csrf_token %}
+          <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+        </form>{% endif %}
+      </div>
+    </div>
+    <div class="card-body">
+      <table class="table table-sm">
+        <tr><th>Name</th><td>{{ p.full_name }}</td></tr>
+        <tr><th>Father</th><td>{{ p.father_name|default:"-" }}</td></tr>
+        <tr><th>Gender / DOB</th><td>{{ p.get_gender_display }} / {{ p.date_of_birth|default:"-" }}</td></tr>
+        <tr><th>CNIC</th><td>{{ p.cnic|default:"-" }}</td></tr>
+        <tr><th>Passport</th><td>{{ p.passport_number|default:"-" }} ({{ p.passport_issue_country }})</td></tr>
+        <tr><th>Passport Expiry</th><td class="{% if p.passport_expiring_soon %}text-danger fw-bold{% endif %}">{{ p.passport_expiry|default:"-" }}</td></tr>
+        <tr><th>Visa #</th><td>{{ p.visa_number|default:"-" }}</td></tr>
+        <tr><th>Visa Expiry</th><td class="{% if p.visa_expiring_soon %}text-danger fw-bold{% endif %}">{{ p.visa_expiry|default:"-" }}</td></tr>
+        <tr><th>Mobile</th><td>{{ p.mobile|default:"-" }}</td></tr>
+        <tr><th>Email</th><td>{{ p.email|default:"-" }}</td></tr>
+        <tr><th>Address</th><td>{{ p.address|default:"-"|linebreaksbr }}</td></tr>
+        <tr><th>Notes</th><td>{{ p.notes|default:"-"|linebreaksbr }}</td></tr>
+      </table>
+    </div></div>
+  </div>
+
+  <div class="col-md-6">
+    <div class="card mb-3"><div class="card-header bg-white"><strong>Documents (Digital Vault)</strong></div>
+    <div class="card-body">
+      {% if perms.crm.add_document %}
+      <form method="post" action="{% url 'document_upload' p.pk %}" enctype="multipart/form-data" class="row g-2 mb-3">{% csrf_token %}
+        <div class="col-md-4">{{ doc_form.doc_type }}</div>
+        <div class="col-md-5">{{ doc_form.file }}</div>
+        <div class="col-md-3"><button class="btn btn-primary w-100"><i class="bi bi-upload"></i> Upload</button></div>
+        <div class="col-12">{{ doc_form.description }}</div>
+      </form>
+      {% endif %}
+      <table class="table table-sm">
+        <thead><tr><th>Type</th><th>File</th><th>Date</th><th></th></tr></thead>
+        <tbody>
+        {% for d in p.documents.all %}
+          <tr>
+            <td>{{ d.get_doc_type_display }}</td>
+            <td><a href="{{ d.file.url }}" target="_blank"><i class="bi bi-file-earmark"></i> View</a></td>
+            <td>{{ d.created_at|date:"Y-m-d" }}</td>
+            <td>{% if perms.crm.delete_document %}
+              <form method="post" action="{% url 'document_delete' d.pk %}" onsubmit="return confirm('Delete?')">{% csrf_token %}
+                <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+              </form>{% endif %}
+            </td>
+          </tr>
+        {% empty %}<tr><td colspan="4" class="text-muted">No documents uploaded.</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </div></div>
+
+    <div class="card"><div class="card-header bg-white"><strong>Bookings</strong></div>
+    <div class="card-body p-0">
+      <table class="table table-sm mb-0">
+        <thead><tr><th>Ref</th><th>Service</th><th>Status</th><th class="text-end">Net</th><th class="text-end">Balance</th></tr></thead>
+        <tbody>
+        {% for b in bookings %}
+          <tr><td><a href="{{ b.get_absolute_url }}">{{ b.reference }}</a></td><td>{{ b.get_service_type_display }}</td><td>{{ b.get_status_display }}</td><td class="text-end">{{ b.net_total|floatformat:2 }}</td><td class="text-end">{{ b.balance_due|floatformat:2 }}</td></tr>
+        {% empty %}<tr><td colspan="5" class="text-muted text-center">No bookings.</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </div></div>
+  </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+document.querySelectorAll('input,select,textarea').forEach(el=>{
+  if(!el.classList.contains('form-control')&&!el.classList.contains('form-select')&&!el.classList.contains('btn-close')){
+    if(el.tagName==='SELECT') el.classList.add('form-select','form-select-sm');
+    else el.classList.add('form-control','form-control-sm');
+  }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,54 @@
+from django.contrib import admin
+from .models import Passenger, Group, GroupMembership, Document, Booking, Payment, Supplier, SupplierPayment
+
+
+@admin.register(Passenger)
+class PassengerAdmin(admin.ModelAdmin):
+    list_display = ("full_name", "passport_number", "cnic", "mobile", "passport_expiry", "visa_expiry")
+    search_fields = ("full_name", "passport_number", "cnic", "mobile", "email")
+    list_filter = ("gender", "passport_issue_country")
+
+
+class MembershipInline(admin.TabularInline):
+    model = GroupMembership
+    extra = 0
+
+
+@admin.register(Group)
+class GroupAdmin(admin.ModelAdmin):
+    list_display = ("name", "service_type", "departure_date", "destination", "member_count")
+    list_filter = ("service_type",)
+    search_fields = ("name", "destination")
+    inlines = [MembershipInline]
+
+
+@admin.register(Document)
+class DocumentAdmin(admin.ModelAdmin):
+    list_display = ("passenger", "doc_type", "created_at")
+    list_filter = ("doc_type",)
+
+
+class PaymentInline(admin.TabularInline):
+    model = Payment
+    extra = 0
+
+
+@admin.register(Booking)
+class BookingAdmin(admin.ModelAdmin):
+    list_display = ("reference", "passenger", "service_type", "package_cost", "status", "travel_date")
+    list_filter = ("service_type", "status")
+    search_fields = ("reference", "passenger__full_name", "passenger__passport_number")
+    inlines = [PaymentInline]
+
+
+@admin.register(Supplier)
+class SupplierAdmin(admin.ModelAdmin):
+    list_display = ("name", "supplier_type", "phone", "email")
+    list_filter = ("supplier_type",)
+    search_fields = ("name", "contact_person", "phone")
+
+
+@admin.register(SupplierPayment)
+class SupplierPaymentAdmin(admin.ModelAdmin):
+    list_display = ("supplier", "amount", "paid_on", "method", "booking")
+    list_filter = ("method", "supplier")

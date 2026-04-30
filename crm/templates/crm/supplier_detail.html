@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}{{ s.name }}{% endblock %}
+{% block page_title %}Supplier: {{ s.name }}{% endblock %}
+{% block content %}
+<div class="row g-3">
+<div class="col-md-4">
+  <div class="card"><div class="card-header bg-white d-flex justify-content-between"><strong>Profile</strong>
+    {% if perms.crm.change_supplier %}<a class="btn btn-sm btn-outline-primary" href="{% url 'supplier_edit' s.pk %}"><i class="bi bi-pencil"></i></a>{% endif %}
+  </div>
+  <div class="card-body">
+    <table class="table table-sm">
+      <tr><th>Type</th><td>{{ s.get_supplier_type_display }}</td></tr>
+      <tr><th>Contact</th><td>{{ s.contact_person|default:"-" }}</td></tr>
+      <tr><th>Phone</th><td>{{ s.phone|default:"-" }}</td></tr>
+      <tr><th>Email</th><td>{{ s.email|default:"-" }}</td></tr>
+      <tr><th>Address</th><td>{{ s.address|default:"-"|linebreaksbr }}</td></tr>
+      <tr><th>Notes</th><td>{{ s.notes|default:"-"|linebreaksbr }}</td></tr>
+      <tr class="table-light"><th>Total Paid</th><td class="fw-bold">{{ s.total_paid|floatformat:2 }}</td></tr>
+    </table>
+  </div></div>
+</div>
+<div class="col-md-8">
+  <div class="card"><div class="card-header bg-white"><strong>Payments</strong></div>
+  <div class="card-body">
+    {% if perms.crm.add_supplierpayment %}
+    <form method="post" action="{% url 'supplier_payment_create' s.pk %}" class="row g-2 mb-3">{% csrf_token %}
+      <div class="col-md-3">{{ pay_form.amount }}</div>
+      <div class="col-md-3">{{ pay_form.method }}</div>
+      <div class="col-md-3">{{ pay_form.paid_on }}</div>
+      <div class="col-md-3"><button class="btn btn-success w-100">Record</button></div>
+      <div class="col-md-6">{{ pay_form.booking }}</div>
+      <div class="col-md-6">{{ pay_form.reference }}</div>
+      <div class="col-12">{{ pay_form.note }}</div>
+    </form>{% endif %}
+    <table class="table table-sm">
+      <thead><tr><th>Date</th><th>Amount</th><th>Method</th><th>Booking</th><th>Reference</th><th>Note</th></tr></thead>
+      <tbody>
+      {% for p in s.payments.all %}
+        <tr><td>{{ p.paid_on }}</td><td>{{ p.amount|floatformat:2 }}</td><td>{{ p.get_method_display }}</td><td>{% if p.booking %}<a href="{{ p.booking.get_absolute_url }}">{{ p.booking.reference }}</a>{% else %}-{% endif %}</td><td>{{ p.reference|default:"-" }}</td><td>{{ p.note|default:"-" }}</td></tr>
+      {% empty %}<tr><td colspan="6" class="text-muted text-center">No payments.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div></div>
+</div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+document.querySelectorAll('input,select,textarea').forEach(el=>{
+  if(!el.classList.contains('form-control')&&!el.classList.contains('form-select')&&!el.classList.contains('btn-close')){
+    if(el.tagName==='SELECT') el.classList.add('form-select','form-select-sm');
+    else el.classList.add('form-control','form-control-sm');
+  }
+});
+</script>
+{% endblock %}

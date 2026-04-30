@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% load humanize %}
+{% block title %}Financial Report{% endblock %}
+{% block page_title %}Financial Report{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-end mb-3">
+  <a class="btn btn-success" href="{% url 'export_financial_excel' %}"><i class="bi bi-file-earmark-excel"></i> Export Excel</a>
+</div>
+<div class="row g-3 mb-3">
+  <div class="col-md-3"><div class="card stat-card p-3"><div class="text-muted small">Total Billed</div><h4>{{ total_billed|floatformat:2|intcomma }}</h4></div></div>
+  <div class="col-md-3"><div class="card stat-card p-3" style="border-left-color:#ffc107"><div class="text-muted small">Discount</div><h4>{{ total_disc|floatformat:2|intcomma }}</h4></div></div>
+  <div class="col-md-3"><div class="card stat-card p-3" style="border-left-color:#198754"><div class="text-muted small">Received</div><h4>{{ total_received|floatformat:2|intcomma }}</h4></div></div>
+  <div class="col-md-3"><div class="card stat-card p-3" style="border-left-color:#dc3545"><div class="text-muted small">Outstanding</div><h4>{{ outstanding|floatformat:2|intcomma }}</h4></div></div>
+  <div class="col-md-3"><div class="card stat-card p-3" style="border-left-color:#6c757d"><div class="text-muted small">Supplier Paid</div><h4>{{ supplier_paid|floatformat:2|intcomma }}</h4></div></div>
+</div>
+
+<div class="card"><div class="card-body p-0">
+<table class="table table-sm mb-0">
+<thead class="table-light"><tr><th>Ref</th><th>Customer</th><th>Service</th><th class="text-end">Net</th><th class="text-end">Received</th><th class="text-end">Balance</th><th>Status</th></tr></thead>
+<tbody>
+{% for b in bookings %}
+<tr><td><a href="{{ b.get_absolute_url }}">{{ b.reference }}</a></td><td>{{ b.passenger.full_name }}</td><td>{{ b.get_service_type_display }}</td><td class="text-end">{{ b.net_total|floatformat:2 }}</td><td class="text-end text-success">{{ b.total_received|floatformat:2 }}</td><td class="text-end {% if b.balance_due > 0 %}text-danger fw-bold{% endif %}">{{ b.balance_due|floatformat:2 }}</td><td>{{ b.get_status_display }}</td></tr>
+{% endfor %}
+</tbody>
+</table>
+</div></div>
+{% endblock %}

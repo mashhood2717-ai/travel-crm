@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Suppliers{% endblock %}
+{% block page_title %}Suppliers{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between mb-3">
+  <div></div>
+  {% if perms.crm.add_supplier %}<a class="btn btn-primary" href="{% url 'supplier_create' %}"><i class="bi bi-plus-lg"></i> New Supplier</a>{% endif %}
+</div>
+<div class="card"><div class="card-body p-0">
+<table class="table table-hover mb-0">
+  <thead class="table-light"><tr><th>Name</th><th>Type</th><th>Contact</th><th>Phone</th><th class="text-end">Total Paid</th></tr></thead>
+  <tbody>
+  {% for s in suppliers %}
+    <tr>
+      <td><a href="{% url 'supplier_detail' s.pk %}">{{ s.name }}</a></td>
+      <td>{{ s.get_supplier_type_display }}</td>
+      <td>{{ s.contact_person|default:"-" }}</td>
+      <td>{{ s.phone|default:"-" }}</td>
+      <td class="text-end">{{ s.total_paid|floatformat:2 }}</td>
+    </tr>
+  {% empty %}<tr><td colspan="5" class="text-muted text-center p-4">No suppliers.</td></tr>{% endfor %}
+  </tbody>
+</table>
+</div></div>
+{% endblock %}

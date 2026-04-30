@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Bookings{% endblock %}
+{% block page_title %}Bookings{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between mb-3 flex-wrap gap-2">
+  <form class="d-flex flex-wrap gap-2" method="get">
+    <input class="form-control" name="q" value="{{ q }}" placeholder="Ref / customer / passport…" style="min-width:240px">
+    <select class="form-select" name="status">
+      <option value="">All Statuses</option>
+      <option value="DRAFT" {% if status == 'DRAFT' %}selected{% endif %}>Draft</option>
+      <option value="CONFIRMED" {% if status == 'CONFIRMED' %}selected{% endif %}>Confirmed</option>
+      <option value="COMPLETED" {% if status == 'COMPLETED' %}selected{% endif %}>Completed</option>
+      <option value="CANCELLED" {% if status == 'CANCELLED' %}selected{% endif %}>Cancelled</option>
+    </select>
+    <select class="form-select" name="service">
+      <option value="">All Services</option>
+      {% for code,label in service_choices %}<option value="{{ code }}" {% if service == code %}selected{% endif %}>{{ label }}</option>{% endfor %}
+    </select>
+    <button class="btn btn-outline-primary"><i class="bi bi-filter"></i></button>
+  </form>
+  {% if perms.crm.add_booking %}<a class="btn btn-primary" href="{% url 'booking_create' %}"><i class="bi bi-plus-lg"></i> New Booking</a>{% endif %}
+</div>
+<div class="card"><div class="card-body p-0">
+<table class="table table-hover table-sm mb-0">
+  <thead class="table-light"><tr><th>Ref</th><th>Customer</th><th>Service</th><th>Travel</th><th>Status</th><th class="text-end">Net</th><th class="text-end">Received</th><th class="text-end">Balance</th></tr></thead>
+  <tbody>
+  {% for b in bookings %}
+    <tr>
+      <td><a href="{{ b.get_absolute_url }}">{{ b.reference }}</a></td>
+      <td>{{ b.passenger.full_name }}</td>
+      <td>{{ b.get_service_type_display }}</td>
+      <td>{{ b.travel_date|default:"-" }}</td>
+      <td><span class="badge bg-secondary">{{ b.get_status_display }}</span></td>
+      <td class="text-end">{{ b.net_total|floatformat:2 }}</td>
+      <td class="text-end text-success">{{ b.total_received|floatformat:2 }}</td>
+      <td class="text-end {% if b.balance_due > 0 %}text-danger fw-bold{% endif %}">{{ b.balance_due|floatformat:2 }}</td>
+    </tr>
+  {% empty %}<tr><td colspan="8" class="text-muted text-center p-4">No bookings.</td></tr>{% endfor %}
+  </tbody>
+</table>
+</div></div>
+{% endblock %}
