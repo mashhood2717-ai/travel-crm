@@ -18,6 +18,68 @@ SERVICE_CHOICES = [
 
 GENDER_CHOICES = [("M", "Male"), ("F", "Female"), ("O", "Other")]
 
+PAX_TYPE_CHOICES = [
+    ("ADULT", "Adult"),
+    ("CHILD", "Child"),
+    ("INFANT", "Infant"),
+]
+
+MEAL_PLAN_CHOICES = [
+    ("RO", "RO"),
+    ("BB", "BB"),
+    ("HB", "HB"),
+    ("FB", "FB"),
+    ("AI", "AI"),
+]
+
+FLIGHT_DIRECTION_CHOICES = [
+    ("OUT", "Departure from Pakistan to KSA"),
+    ("IN", "Departure from KSA to Pakistan"),
+]
+
+ROOM_TYPE_CHOICES = [
+    ("SINGLE", "Single (1 Bed)"),
+    ("DOUBLE", "Double (2 Beds)"),
+    ("TRIPLE", "Triple (3 Beds)"),
+    ("QUAD", "Quad (4 Beds)"),
+    ("QUINT", "Quintuple (5 Beds)"),
+    ("FAMILY", "Family Suite"),
+    ("OTHER", "Other"),
+]
+
+ROOM_BASIS_CHOICES = [
+    ("SHARING", "Sharing (with other pilgrims)"),
+    ("PRIVATE", "Private (own room)"),
+]
+
+MEAL_PLAN_CHOICES = [
+    ("RO", "Room Only (RO)"),
+    ("BB", "Bed & Breakfast (BB)"),
+    ("HB", "Half Board (HB)"),
+    ("FB", "Full Board (FB)"),
+]
+
+PAX_TYPE_CHOICES = [
+    ("ADULT", "Adult"),
+    ("CHILD", "Child"),
+    ("INFANT", "Infant"),
+]
+
+FLIGHT_DIRECTION_CHOICES = [
+    ("OUT", "Pakistan to KSA"),
+    ("IN", "KSA to Pakistan"),
+    ("OTHER", "Other"),
+]
+
+TRANSPORT_MODE_CHOICES = [
+    ("BUS", "Bus (Sharing / Group)"),
+    ("PRIVATE", "Private Car"),
+    ("VAN", "Van / Coaster"),
+    ("GMC", "GMC / SUV"),
+    ("TRAIN", "Haramain Train"),
+    ("OTHER", "Other"),
+]
+
 
 class TimeStamped(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
@@ -181,6 +243,17 @@ class Booking(TimeStamped):
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="DRAFT")
     description = models.TextField(blank=True)
 
+    # Hotel-voucher metadata
+    voucher_no = models.CharField(max_length=30, blank=True)
+    voucher_date = models.DateField(null=True, blank=True)
+    branch = models.CharField(max_length=50, blank=True)
+    saudi_company = models.CharField(max_length=200, blank=True)
+    package_label = models.CharField(max_length=100, blank=True)
+    manual_no = models.CharField(max_length=50, blank=True)
+    group_no = models.CharField(max_length=50, blank=True)
+    whatsapp = models.CharField(max_length=30, blank=True)
+    voucher_note = models.TextField(blank=True)
+
     created_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL)
 
     class Meta:
@@ -211,6 +284,60 @@ class Booking(TimeStamped):
     @property
     def balance_due(self):
         return self.net_total - self.total_received
+
+    @property
+    def effective_voucher_no(self):
+        return self.voucher_no or (f"UB-{self.pk:06d}" if self.pk else "")
+
+    @property
+    def all_pilgrims(self):
+        """Family head + extra pilgrims, in order."""
+        items = [{
+            "passenger": self.passenger,
+            "pax_type": "ADULT",
+            "pax_type_display": "Adult",
+            "bed": True,
+            "visa_number": getattr(self.passenger, "visa_number", "") or "",
+            "pnr": "",
+            "is_head": True,
+        }]
+        for ep in self.extra_pax.select_related("passenger").all():
+            items.append({
+                "passenger": ep.passenger,
+                "pax_type": ep.pax_type,
+                "pax_type_display": ep.get_pax_type_display(),
+                "bed": ep.bed,
+                "visa_number": ep.visa_number or (getattr(ep.passenger, "visa_number", "") or ""),
+                "pnr": ep.pnr,
+                "is_head": False,
+            })
+        return items
+
+    @property
+    def total_pax(self):
+        return 1 + self.extra_pax.count()
+
+    @property
+    def adults_count(self):
+        return 1 + self.extra_pax.filter(pax_type="ADULT").count()
+
+    @property
+    def children_count(self):
+        return self.extra_pax.filter(pax_type="CHILD").count()
+
+    @property
+    def infants_count(self):
+        return self.extra_pax.filter(pax_type="INFANT").count()
+
+    @property
+    def total_beds(self):
+        beds = 1  # head
+        beds += self.extra_pax.filter(bed=True).count()
+        return beds
+
+    @property
+    def total_nights(self):
+        return sum(h.nights for h in self.hotels.all())
 
 
 class Payment(TimeStamped):
@@ -250,3 +377,144 @@ class SupplierPayment(TimeStamped):
 
     def __str__(self):
         return f"{self.supplier.name} - {self.amount}"
+
+
+class BookingHotel(TimeStamped):
+    booking = models.ForeignKey(Booking, on_delete=models.CASCADE, related_name="hotels")
+    hotel = models.ForeignKey("Hotel", on_delete=models.PROTECT, related_name="booking_stays")
+    confirm_no = models.CharField(max_length=80, blank=True)
+    room_type = models.CharField(max_length=20, choices=ROOM_TYPE_CHOICES, default="DOUBLE")
+    room_basis = models.CharField(max_length=10, choices=ROOM_BASIS_CHOICES, default="SHARING")
+    rooms_count = models.PositiveSmallIntegerField(default=1, help_text="How many rooms of this type")
+    occupants = models.PositiveSmallIntegerField(default=2, help_text="People per room")
+    extra_bed = models.BooleanField(default=False)
+    room_notes = models.CharField(max_length=200, blank=True, help_text="e.g. mother+daughter, no smoking, view")
+    meal_plan = models.CharField(max_length=4, choices=MEAL_PLAN_CHOICES, default="RO")
+    check_in = models.DateField()
+    check_out = models.DateField()
+
+    class Meta:
+        ordering = ["check_in", "id"]
+
+    def __str__(self):
+        return f"{self.hotel.name} ({self.hotel.city})"
+
+    @property
+    def hotel_name(self):
+        return self.hotel.name
+
+    @property
+    def city(self):
+        return self.hotel.city
+
+    @property
+    def room_label(self):
+        """Pretty label like '2x Triple Sharing' for vouchers/lists."""
+        rt = self.get_room_type_display().split(" (")[0]
+        basis = "Sharing" if self.room_basis == "SHARING" else "Private"
+        prefix = f"{self.rooms_count}x " if self.rooms_count > 1 else ""
+        suffix = " +Extra Bed" if self.extra_bed else ""
+        return f"{prefix}{rt} {basis}{suffix}"
+
+    @property
+    def total_beds(self):
+        beds_per_type = {"SINGLE": 1, "DOUBLE": 2, "TRIPLE": 3, "QUAD": 4, "QUINT": 5}
+        return beds_per_type.get(self.room_type, self.occupants) * self.rooms_count + (
+            self.rooms_count if self.extra_bed else 0
+        )
+
+    @property
+    def nights(self):
+        if self.check_in and self.check_out:
+            return max((self.check_out - self.check_in).days, 0)
+        return 0
+
+
+class BookingFlight(TimeStamped):
+    booking = models.ForeignKey(Booking, on_delete=models.CASCADE, related_name="flights")
+    airline = models.ForeignKey("Airline", null=True, blank=True, on_delete=models.SET_NULL, related_name="booking_flights")
+    direction = models.CharField(max_length=10, choices=FLIGHT_DIRECTION_CHOICES, default="OUT")
+    flight_no = models.CharField(max_length=20)
+    sector = models.CharField(max_length=50, blank=True)
+    departure = models.DateTimeField(null=True, blank=True)
+    arrival = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["direction", "departure", "id"]
+
+    def __str__(self):
+        return f"{self.flight_no} {self.sector}"
+
+    @property
+    def airline_name(self):
+        return self.airline.name if self.airline else ""
+
+
+class BookingTransport(TimeStamped):
+    booking = models.ForeignKey(Booking, on_delete=models.CASCADE, related_name="transports")
+    name = models.CharField(max_length=120, help_text="Route or service name (e.g. JED-MAK-MED-JED)")
+    transport_mode = models.CharField(max_length=10, choices=TRANSPORT_MODE_CHOICES, default="BUS")
+    transport_type = models.CharField(max_length=120, blank=True, help_text="Optional details (e.g. AC Coaster, Toyota Hiace)")
+    brn = models.CharField(max_length=80, blank=True)
+
+    class Meta:
+        ordering = ["id"]
+
+    def __str__(self):
+        return f"{self.name} - {self.get_transport_mode_display()}"
+
+    @property
+    def mode_label(self):
+        return self.get_transport_mode_display()
+
+
+class BookingPassenger(TimeStamped):
+    booking = models.ForeignKey(Booking, on_delete=models.CASCADE, related_name="extra_pax")
+    passenger = models.ForeignKey(Passenger, on_delete=models.PROTECT)
+    pax_type = models.CharField(max_length=10, choices=PAX_TYPE_CHOICES, default="ADULT")
+    bed = models.BooleanField(default=True)
+    visa_number = models.CharField(max_length=80, blank=True)
+    pnr = models.CharField(max_length=40, blank=True)
+
+    class Meta:
+        ordering = ["id"]
+        unique_together = [("booking", "passenger")]
+
+    def __str__(self):
+        return f"{self.passenger.full_name} ({self.get_pax_type_display()})"
+
+
+class Hotel(TimeStamped):
+    name = models.CharField(max_length=200, db_index=True)
+    city = models.CharField(max_length=100, db_index=True)
+    address = models.CharField(max_length=255, blank=True)
+    phone = models.CharField(max_length=40, blank=True)
+    default_meal_plan = models.CharField(max_length=4, choices=MEAL_PLAN_CHOICES, default="RO")
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ["city", "name"]
+        unique_together = [("name", "city")]
+
+    def __str__(self):
+        return f"{self.name} — {self.city}"
+
+    def get_absolute_url(self):
+        return reverse("hotel_list")
+
+
+class Airline(TimeStamped):
+    name = models.CharField(max_length=120, unique=True, db_index=True)
+    code = models.CharField(max_length=10, blank=True, help_text="IATA code, e.g. SV, PK, EK")
+    country = models.CharField(max_length=80, blank=True)
+    phone = models.CharField(max_length=40, blank=True)
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name if not self.code else f"{self.name} ({self.code})"
+
+    def get_absolute_url(self):
+        return reverse("airline_list")

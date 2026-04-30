@@ -13,10 +13,13 @@ from django.views.decorators.http import require_POST
 from .models import (
     Passenger, Group, GroupMembership, Document,
     Booking, Payment, Supplier, SupplierPayment, SERVICE_CHOICES,
+    BookingHotel, BookingFlight, BookingTransport, BookingPassenger, Hotel, Airline,
 )
 from .forms import (
     PassengerForm, GroupForm, GroupMembershipForm, DocumentForm,
     BookingForm, PaymentForm, SupplierForm, SupplierPaymentForm,
+    BookingHotelForm, BookingFlightForm, BookingTransportForm, BookingPassengerForm,
+    HotelForm, AirlineForm,
 )
 
 
@@ -270,7 +273,14 @@ def booking_create(request):
 def booking_detail(request, pk):
     b = get_object_or_404(Booking.objects.select_related("passenger", "group"), pk=pk)
     pay_form = PaymentForm()
-    return render(request, "crm/booking_detail.html", {"b": b, "pay_form": pay_form})
+    return render(request, "crm/booking_detail.html", {
+        "b": b,
+        "pay_form": pay_form,
+        "hotel_form": BookingHotelForm(),
+        "flight_form": BookingFlightForm(),
+        "transport_form": BookingTransportForm(),
+        "pax_form": BookingPassengerForm(),
+    })
 
 
 @login_required
@@ -539,3 +549,420 @@ def export_financial_excel(request):
     resp = _excel_response("financial_report.xlsx")
     wb.save(resp)
     return resp
+
+
+# ---------- Booking inline items (hotels / flights / transports / extra pax) ----------
+
+def _add_inline_item(request, pk, FormClass, fk_attr, success_msg, perm):
+    if not request.user.has_perm(perm):
+        messages.error(request, "Permission denied.")
+        return redirect("booking_detail", pk=pk)
+    b = get_object_or_404(Booking, pk=pk)
+    form = FormClass(request.POST)
+    if form.is_valid():
+        obj = form.save(commit=False)
+        setattr(obj, fk_attr, b)
+        try:
+            obj.save()
+            messages.success(request, success_msg)
+        except Exception as e:
+            messages.error(request, f"Could not save: {e}")
+    else:
+        messages.error(request, "Invalid input.")
+    return redirect("booking_detail", pk=pk)
+
+
+@login_required
+@require_POST
+def booking_hotel_add(request, pk):
+    return _add_inline_item(request, pk, BookingHotelForm, "booking", "Hotel added.", "crm.change_booking")
+
+
+@login_required
+@require_POST
+def booking_hotel_delete(request, pk, item_id):
+    if not request.user.has_perm("crm.change_booking"):
+        messages.error(request, "Permission denied.")
+        return redirect("booking_detail", pk=pk)
+    BookingHotel.objects.filter(pk=item_id, booking_id=pk).delete()
+    return redirect("booking_detail", pk=pk)
+
+
+@login_required
+@require_POST
+def booking_flight_add(request, pk):
+    return _add_inline_item(request, pk, BookingFlightForm, "booking", "Flight added.", "crm.change_booking")
+
+
+@login_required
+@require_POST
+def booking_flight_delete(request, pk, item_id):
+    if not request.user.has_perm("crm.change_booking"):
+        messages.error(request, "Permission denied.")
+        return redirect("booking_detail", pk=pk)
+    BookingFlight.objects.filter(pk=item_id, booking_id=pk).delete()
+    return redirect("booking_detail", pk=pk)
+
+
+@login_required
+@require_POST
+def booking_transport_add(request, pk):
+    return _add_inline_item(request, pk, BookingTransportForm, "booking", "Transport added.", "crm.change_booking")
+
+
+@login_required
+@require_POST
+def booking_transport_delete(request, pk, item_id):
+    if not request.user.has_perm("crm.change_booking"):
+        messages.error(request, "Permission denied.")
+        return redirect("booking_detail", pk=pk)
+    BookingTransport.objects.filter(pk=item_id, booking_id=pk).delete()
+    return redirect("booking_detail", pk=pk)
+
+
+@login_required
+@require_POST
+def booking_pax_add(request, pk):
+    return _add_inline_item(request, pk, BookingPassengerForm, "booking", "Pilgrim added.", "crm.change_booking")
+
+
+@login_required
+@require_POST
+def booking_pax_delete(request, pk, item_id):
+    if not request.user.has_perm("crm.change_booking"):
+        messages.error(request, "Permission denied.")
+        return redirect("booking_detail", pk=pk)
+    BookingPassenger.objects.filter(pk=item_id, booking_id=pk).delete()
+    return redirect("booking_detail", pk=pk)
+
+
+# ---------- Hotel Voucher PDF ----------
+
+@login_required
+def booking_voucher_pdf(request, pk):
+    b = get_object_or_404(
+        Booking.objects.select_related("passenger").prefetch_related(
+            "hotels", "flights", "transports", "extra_pax__passenger"
+        ),
+        pk=pk,
+    )
+    return _voucher_pdf(b)
+
+
+def _voucher_pdf(b):
+    from django.conf import settings
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.units import mm
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib import colors
+    from reportlab.lib.enums import TA_CENTER
+
+    buf = BytesIO()
+    doc = SimpleDocTemplate(
+        buf, pagesize=A4,
+        leftMargin=12 * mm, rightMargin=12 * mm,
+        topMargin=10 * mm, bottomMargin=10 * mm,
+        title=f"Hotel Voucher {b.effective_voucher_no}",
+    )
+
+    styles = getSampleStyleSheet()
+    h_center = ParagraphStyle("hc", parent=styles["Heading2"], alignment=TA_CENTER, spaceAfter=4)
+    title_box = ParagraphStyle("tb", parent=styles["Heading2"], alignment=TA_CENTER, fontSize=14)
+    small = ParagraphStyle("sm", parent=styles["Normal"], fontSize=8)
+
+    el = []
+
+    # Agency name top
+    el.append(Paragraph(f"<b>{settings.AGENCY_NAME}</b>", h_center))
+    el.append(Spacer(1, 4))
+
+    # Hotel Voucher banner
+    banner = Table([[Paragraph("<b>Hotel Voucher</b>", title_box)]], colWidths=[80 * mm])
+    banner.hAlign = "CENTER"
+    banner.setStyle(TableStyle([
+        ("BOX", (0, 0), (-1, -1), 1, colors.black),
+        ("TOPPADDING", (0, 0), (-1, -1), 6),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+    ]))
+    el.append(banner)
+    el.append(Spacer(1, 6))
+
+    # Header info table (4 cols)
+    fmt_d = lambda d: d.strftime("%d/%m/%y") if d else ""
+    voucher_date = b.voucher_date or b.created_at.date()
+    head_rows = [
+        ["IATA:", settings.AGENCY_NAME, "Voucher No:", b.effective_voucher_no, "Branch:", b.branch or ""],
+        ["Saudi Company:", b.saudi_company or "", "Date:", fmt_d(voucher_date), "", ""],
+        ["Package:", b.package_label or b.get_service_type_display(), "Manual No:", b.manual_no or "", "Group #:", b.group_no or ""],
+        ["Family Head:", b.passenger.full_name.upper(), "Total PAX:", str(b.total_pax), "Whatsapp:", b.whatsapp or ""],
+    ]
+    th = Table(head_rows, colWidths=[24 * mm, 50 * mm, 22 * mm, 36 * mm, 20 * mm, 34 * mm])
+    th.setStyle(TableStyle([
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.black),
+        ("FONTSIZE", (0, 0), (-1, -1), 9),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#f1f1f1")),
+        ("BACKGROUND", (2, 0), (2, -1), colors.HexColor("#f1f1f1")),
+        ("BACKGROUND", (4, 0), (4, -1), colors.HexColor("#f1f1f1")),
+    ]))
+    el.append(th)
+
+    # Pilgrims Details
+    el.append(_section_bar("Pilgrims Details"))
+    pilgrim_rows = [["Mutamer Name", "Gender", "PPNO", "PAX", "Beds", "Visa Number", "PNR"]]
+    for p in b.all_pilgrims:
+        pax = p["passenger"]
+        pilgrim_rows.append([
+            pax.full_name.upper(),
+            pax.get_gender_display(),
+            pax.passport_number or "",
+            p["pax_type_display"],
+            "Yes" if p["bed"] else "No",
+            p["visa_number"],
+            p["pnr"],
+        ])
+    pt = Table(pilgrim_rows, colWidths=[55 * mm, 18 * mm, 25 * mm, 15 * mm, 13 * mm, 30 * mm, 30 * mm])
+    pt.setStyle(_table_style(header=True))
+    el.append(pt)
+
+    # Totals row
+    summary = Table(
+        [[f"Adults: {b.adults_count}", f"Childs: {b.children_count}",
+          f"Infants: {b.infants_count}", f"Total PAX: {b.total_pax}",
+          f"Total BEDS: {b.total_beds}"]],
+        colWidths=[30 * mm, 25 * mm, 27 * mm, 30 * mm, 30 * mm],
+    )
+    summary.setStyle(TableStyle([
+        ("FONTSIZE", (0, 0), (-1, -1), 9),
+        ("BOX", (0, 0), (-1, -1), 0.5, colors.black),
+        ("INNERGRID", (0, 0), (-1, -1), 0.25, colors.grey),
+        ("LEFTPADDING", (0, 0), (-1, -1), 4),
+    ]))
+    el.append(summary)
+
+    # Accommodation
+    el.append(_section_bar("Accommodation Details:"))
+    hotel_rows = [["Hotel Name", "Confirm No", "City", "Room", "Meal Plan", "Check In", "Checkout", "Nights"]]
+    total_nights = 0
+    for h in b.hotels.all():
+        room_cell = h.room_label
+        if h.room_notes:
+            room_cell += f"\n({h.room_notes})"
+        hotel_rows.append([
+            h.hotel.name, h.confirm_no, h.hotel.city, room_cell, h.meal_plan,
+            fmt_d(h.check_in), fmt_d(h.check_out), str(h.nights),
+        ])
+        total_nights += h.nights
+    if len(hotel_rows) == 1:
+        hotel_rows.append(["—", "", "", "", "", "", "", ""])
+    ht = Table(hotel_rows, colWidths=[45 * mm, 22 * mm, 20 * mm, 28 * mm, 18 * mm, 18 * mm, 18 * mm, 14 * mm])
+    ht.setStyle(_table_style(header=True))
+    el.append(ht)
+    tn = Table([["", "", "", "", "", "", "Total Nights:", str(total_nights)]],
+               colWidths=[45 * mm, 22 * mm, 20 * mm, 28 * mm, 18 * mm, 18 * mm, 18 * mm, 14 * mm])
+    tn.setStyle(TableStyle([
+        ("FONTSIZE", (0, 0), (-1, -1), 9),
+        ("BOX", (6, 0), (7, 0), 0.5, colors.black),
+        ("FONTNAME", (6, 0), (7, 0), "Helvetica-Bold"),
+        ("ALIGN", (7, 0), (7, 0), "CENTER"),
+    ]))
+    el.append(tn)
+
+    # Transport / Services
+    el.append(_section_bar("Transport / Services"))
+    tr_rows = [["Name", "Mode", "Type / Details", "BRN"]]
+    for t in b.transports.all():
+        tr_rows.append([t.name, t.get_transport_mode_display(), t.transport_type, t.brn])
+    if len(tr_rows) == 1:
+        tr_rows.append(["—", "", "", ""])
+    tr = Table(tr_rows, colWidths=[55 * mm, 35 * mm, 60 * mm, 33 * mm])
+    tr.setStyle(_table_style(header=True))
+    el.append(tr)
+
+    # Flights — split into two side-by-side mini-tables
+    out_flights = [f for f in b.flights.all() if f.direction == "OUT"]
+    in_flights = [f for f in b.flights.all() if f.direction == "IN"]
+
+    def _flight_table(title, flights):
+        rows = [[Paragraph(f"<b>{title}</b>", small)]]
+        rows.append(["Airline", "Flight", "Sector", "Departure", "Arrival"])
+        for f in flights:
+            rows.append([
+                f.airline.name if f.airline else "",
+                f.flight_no, f.sector,
+                f.departure.strftime("%d-%b %H:%M") if f.departure else "",
+                f.arrival.strftime("%d-%b %H:%M") if f.arrival else "",
+            ])
+        if len(rows) == 2:
+            rows.append(["—", "", "", "", ""])
+        t = Table(rows, colWidths=[18 * mm, 14 * mm, 16 * mm, 19 * mm, 19 * mm])
+        t.setStyle(TableStyle([
+            ("SPAN", (0, 0), (-1, 0)),
+            ("ALIGN", (0, 0), (-1, 0), "CENTER"),
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#e9e9e9")),
+            ("BACKGROUND", (0, 1), (-1, 1), colors.HexColor("#f1f1f1")),
+            ("FONTNAME", (0, 1), (-1, 1), "Helvetica-Bold"),
+            ("GRID", (0, 0), (-1, -1), 0.4, colors.black),
+            ("FONTSIZE", (0, 0), (-1, -1), 8),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ]))
+        return t
+
+    flights_tbl = Table(
+        [[_flight_table("Departure from Pakistan to KSA", out_flights),
+          _flight_table("Departure from KSA to Pakistan", in_flights)]],
+        colWidths=[88 * mm, 88 * mm],
+    )
+    flights_tbl.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP")]))
+    el.append(Spacer(1, 4))
+    el.append(flights_tbl)
+
+    # Footer note
+    if b.voucher_note:
+        el.append(Spacer(1, 6))
+        el.append(Paragraph(f"<b>Note:</b> {b.voucher_note}", small))
+
+    el.append(Spacer(1, 4))
+    el.append(Paragraph(
+        f"Phone: {settings.AGENCY_PHONE} &nbsp;&nbsp; Email: {settings.AGENCY_EMAIL} &nbsp;&nbsp; {settings.AGENCY_ADDRESS}",
+        small,
+    ))
+
+    doc.build(el)
+    buf.seek(0)
+    return FileResponse(buf, as_attachment=False, filename=f"voucher-{b.effective_voucher_no}.pdf")
+
+
+def _section_bar(text):
+    from reportlab.platypus import Table, TableStyle
+    from reportlab.lib import colors
+    from reportlab.lib.units import mm
+    t = Table([[text]], colWidths=[186 * mm])
+    t.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#dcdcdc")),
+        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+        ("FONTNAME", (0, 0), (-1, -1), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 0), (-1, -1), 10),
+        ("BOX", (0, 0), (-1, -1), 0.5, colors.black),
+        ("TOPPADDING", (0, 0), (-1, -1), 3),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+    ]))
+    return t
+
+
+def _table_style(header=False):
+    from reportlab.platypus import TableStyle
+    from reportlab.lib import colors
+    s = [
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.black),
+        ("FONTSIZE", (0, 0), (-1, -1), 8),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+    ]
+    if header:
+        s += [
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#f1f1f1")),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ]
+    return TableStyle(s)
+
+
+# ---------- Hotels ----------
+
+@login_required
+def hotel_list(request):
+    q = (request.GET.get("q") or "").strip()
+    qs = Hotel.objects.all()
+    if q:
+        qs = qs.filter(Q(name__icontains=q) | Q(city__icontains=q))
+    form = HotelForm()
+    return render(request, "crm/hotel_list.html", {"hotels": qs, "q": q, "form": form})
+
+
+@login_required
+@permission_required("crm.add_hotel", raise_exception=True)
+@require_POST
+def hotel_create(request):
+    form = HotelForm(request.POST)
+    if form.is_valid():
+        form.save()
+        messages.success(request, "Hotel added.")
+    else:
+        messages.error(request, "Could not add hotel: " + " | ".join(f"{k}: {','.join(v)}" for k, v in form.errors.items()))
+    return redirect("hotel_list")
+
+
+@login_required
+@permission_required("crm.change_hotel", raise_exception=True)
+def hotel_edit(request, pk):
+    h = get_object_or_404(Hotel, pk=pk)
+    form = HotelForm(request.POST or None, instance=h)
+    if form.is_valid():
+        form.save()
+        messages.success(request, "Hotel updated.")
+        return redirect("hotel_list")
+    return render(request, "crm/hotel_form.html", {"form": form, "h": h, "title": "Edit Hotel"})
+
+
+@login_required
+@permission_required("crm.delete_hotel", raise_exception=True)
+@require_POST
+def hotel_delete(request, pk):
+    h = get_object_or_404(Hotel, pk=pk)
+    try:
+        h.delete()
+        messages.success(request, "Hotel deleted.")
+    except Exception:
+        messages.error(request, "Cannot delete: hotel is linked to bookings.")
+    return redirect("hotel_list")
+
+
+# ---------- Airlines ----------
+
+@login_required
+def airline_list(request):
+    q = (request.GET.get("q") or "").strip()
+    qs = Airline.objects.all()
+    if q:
+        qs = qs.filter(Q(name__icontains=q) | Q(code__icontains=q) | Q(country__icontains=q))
+    form = AirlineForm()
+    return render(request, "crm/airline_list.html", {"airlines": qs, "q": q, "form": form})
+
+
+@login_required
+@permission_required("crm.add_airline", raise_exception=True)
+@require_POST
+def airline_create(request):
+    form = AirlineForm(request.POST)
+    if form.is_valid():
+        form.save()
+        messages.success(request, "Airline added.")
+    else:
+        messages.error(request, "Could not add airline: " + " | ".join(f"{k}: {','.join(v)}" for k, v in form.errors.items()))
+    return redirect("airline_list")
+
+
+@login_required
+@permission_required("crm.change_airline", raise_exception=True)
+def airline_edit(request, pk):
+    a = get_object_or_404(Airline, pk=pk)
+    form = AirlineForm(request.POST or None, instance=a)
+    if form.is_valid():
+        form.save()
+        messages.success(request, "Airline updated.")
+        return redirect("airline_list")
+    return render(request, "crm/airline_form.html", {"form": form, "a": a, "title": "Edit Airline"})
+
+
+@login_required
+@permission_required("crm.delete_airline", raise_exception=True)
+@require_POST
+def airline_delete(request, pk):
+    a = get_object_or_404(Airline, pk=pk)
+    try:
+        a.delete()
+        messages.success(request, "Airline deleted.")
+    except Exception:
+        messages.error(request, "Cannot delete: airline is linked to flights.")
+    return redirect("airline_list")

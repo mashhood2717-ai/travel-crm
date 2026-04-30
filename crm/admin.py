@@ -1,5 +1,9 @@
 from django.contrib import admin
-from .models import Passenger, Group, GroupMembership, Document, Booking, Payment, Supplier, SupplierPayment
+from .models import (
+    Passenger, Group, GroupMembership, Document, Booking, Payment,
+    Supplier, SupplierPayment,
+    BookingHotel, BookingFlight, BookingTransport, BookingPassenger, Hotel, Airline,
+)
 
 
 @admin.register(Passenger)
@@ -33,12 +37,32 @@ class PaymentInline(admin.TabularInline):
     extra = 0
 
 
+class BookingHotelInline(admin.TabularInline):
+    model = BookingHotel
+    extra = 0
+
+
+class BookingFlightInline(admin.TabularInline):
+    model = BookingFlight
+    extra = 0
+
+
+class BookingTransportInline(admin.TabularInline):
+    model = BookingTransport
+    extra = 0
+
+
+class BookingPassengerInline(admin.TabularInline):
+    model = BookingPassenger
+    extra = 0
+
+
 @admin.register(Booking)
 class BookingAdmin(admin.ModelAdmin):
     list_display = ("reference", "passenger", "service_type", "package_cost", "status", "travel_date")
     list_filter = ("service_type", "status")
     search_fields = ("reference", "passenger__full_name", "passenger__passport_number")
-    inlines = [PaymentInline]
+    inlines = [BookingPassengerInline, BookingHotelInline, BookingFlightInline, BookingTransportInline, PaymentInline]
 
 
 @admin.register(Supplier)
@@ -52,3 +76,16 @@ class SupplierAdmin(admin.ModelAdmin):
 class SupplierPaymentAdmin(admin.ModelAdmin):
     list_display = ("supplier", "amount", "paid_on", "method", "booking")
     list_filter = ("method", "supplier")
+
+
+@admin.register(Hotel)
+class HotelAdmin(admin.ModelAdmin):
+    list_display = ("name", "city", "phone", "default_meal_plan")
+    list_filter = ("city", "default_meal_plan")
+    search_fields = ("name", "city")
+
+
+@admin.register(Airline)
+class AirlineAdmin(admin.ModelAdmin):
+    list_display = ("name", "code", "country", "phone")
+    search_fields = ("name", "code", "country")

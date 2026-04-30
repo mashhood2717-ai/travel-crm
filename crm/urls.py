@@ -32,7 +32,18 @@ urlpatterns = [
     path("bookings/<int:pk>/delete/", views.booking_delete, name="booking_delete"),
     path("bookings/<int:pk>/payment/", views.payment_create, name="payment_create"),
     path("bookings/<int:pk>/invoice/", views.booking_invoice_pdf, name="booking_invoice_pdf"),
+    path("bookings/<int:pk>/voucher/", views.booking_voucher_pdf, name="booking_voucher_pdf"),
     path("bookings/<int:pk>/receipt/<int:payment_id>/", views.payment_receipt_pdf, name="payment_receipt_pdf"),
+
+    # Booking inline items
+    path("bookings/<int:pk>/hotel/add/", views.booking_hotel_add, name="booking_hotel_add"),
+    path("bookings/<int:pk>/hotel/<int:item_id>/delete/", views.booking_hotel_delete, name="booking_hotel_delete"),
+    path("bookings/<int:pk>/flight/add/", views.booking_flight_add, name="booking_flight_add"),
+    path("bookings/<int:pk>/flight/<int:item_id>/delete/", views.booking_flight_delete, name="booking_flight_delete"),
+    path("bookings/<int:pk>/transport/add/", views.booking_transport_add, name="booking_transport_add"),
+    path("bookings/<int:pk>/transport/<int:item_id>/delete/", views.booking_transport_delete, name="booking_transport_delete"),
+    path("bookings/<int:pk>/pax/add/", views.booking_pax_add, name="booking_pax_add"),
+    path("bookings/<int:pk>/pax/<int:item_id>/delete/", views.booking_pax_delete, name="booking_pax_delete"),
 
     # Suppliers
     path("suppliers/", views.supplier_list, name="supplier_list"),
@@ -40,6 +51,18 @@ urlpatterns = [
     path("suppliers/<int:pk>/", views.supplier_detail, name="supplier_detail"),
     path("suppliers/<int:pk>/edit/", views.supplier_edit, name="supplier_edit"),
     path("suppliers/<int:pk>/pay/", views.supplier_payment_create, name="supplier_payment_create"),
+
+    # Hotels (master list)
+    path("hotels/", views.hotel_list, name="hotel_list"),
+    path("hotels/new/", views.hotel_create, name="hotel_create"),
+    path("hotels/<int:pk>/edit/", views.hotel_edit, name="hotel_edit"),
+    path("hotels/<int:pk>/delete/", views.hotel_delete, name="hotel_delete"),
+
+    # Airlines (master list)
+    path("airlines/", views.airline_list, name="airline_list"),
+    path("airlines/new/", views.airline_create, name="airline_create"),
+    path("airlines/<int:pk>/edit/", views.airline_edit, name="airline_edit"),
+    path("airlines/<int:pk>/delete/", views.airline_delete, name="airline_delete"),
 
     # Reports
     path("reports/financial/", views.financial_report, name="financial_report"),

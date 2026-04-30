@@ -31,7 +31,9 @@
         <a href="{% url 'passenger_list' %}"><i class="bi bi-people"></i> Passengers</a>
         <a href="{% url 'group_list' %}"><i class="bi bi-people-fill"></i> Groups</a>
         <a href="{% url 'booking_list' %}"><i class="bi bi-journal-check"></i> Bookings</a>
-        <a href="{% url 'supplier_list' %}"><i class="bi bi-building"></i> Suppliers</a>
+        <a href="{% url 'hotel_list' %}"><i class="bi bi-building"></i> Hotels</a>
+        <a href="{% url 'airline_list' %}"><i class="bi bi-airplane"></i> Airlines</a>
+        <a href="{% url 'supplier_list' %}"><i class="bi bi-building-fill-gear"></i> Suppliers</a>
         <a href="{% url 'financial_report' %}"><i class="bi bi-cash-coin"></i> Financial Report</a>
         {% if user.is_superuser %}
         <a href="/admin/"><i class="bi bi-gear"></i> Admin</a>

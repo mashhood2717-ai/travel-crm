@@ -6,6 +6,7 @@
 <div class="col-md-5">
   <div class="card"><div class="card-header bg-white d-flex justify-content-between"><strong>Booking</strong>
     <div>
+      <a class="btn btn-sm btn-outline-success" target="_blank" href="{% url 'booking_voucher_pdf' b.pk %}"><i class="bi bi-file-earmark-text"></i> Voucher</a>
       <a class="btn btn-sm btn-outline-danger" href="{% url 'booking_invoice_pdf' b.pk %}"><i class="bi bi-file-earmark-pdf"></i> Invoice</a>
       {% if perms.crm.change_booking %}<a class="btn btn-sm btn-outline-primary" href="{% url 'booking_edit' b.pk %}"><i class="bi bi-pencil"></i></a>{% endif %}
       {% if perms.crm.delete_booking %}<form method="post" action="{% url 'booking_delete' b.pk %}" class="d-inline" onsubmit="return confirm('Delete?')">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button></form>{% endif %}
@@ -56,6 +57,258 @@
       {% empty %}<tr><td colspan="6" class="text-muted text-center">No payments yet.</td></tr>{% endfor %}
       </tbody>
     </table>
+  </div></div>
+</div>
+</div>
+
+<div class="row g-3 mt-1">
+<!-- Pilgrims (additional pax) -->
+<div class="col-md-6">
+  <div class="card"><div class="card-header bg-white d-flex justify-content-between align-items-center">
+    <strong><i class="bi bi-people-fill"></i> Pilgrims</strong>
+    <span class="badge bg-secondary">Total PAX: {{ b.total_pax }} | Beds: {{ b.total_beds }}</span>
+  </div>
+  <div class="card-body">
+    <table class="table table-sm align-middle">
+      <thead><tr><th>Name</th><th>Type</th><th>Bed</th><th>Visa</th><th>PNR</th><th></th></tr></thead>
+      <tbody>
+        <tr class="table-light">
+          <td><strong>{{ b.passenger.full_name }}</strong> <span class="badge bg-primary">Head</span></td>
+          <td>Adult</td><td>Yes</td>
+          <td>{{ b.passenger.visa_number|default:"-" }}</td>
+          <td>-</td><td></td>
+        </tr>
+        {% for ep in b.extra_pax.all %}
+        <tr>
+          <td>{{ ep.passenger.full_name }}</td>
+          <td>{{ ep.get_pax_type_display }}</td>
+          <td>{% if ep.bed %}Yes{% else %}No{% endif %}</td>
+          <td>{{ ep.visa_number|default:"-" }}</td>
+          <td>{{ ep.pnr|default:"-" }}</td>
+          <td>
+            {% if perms.crm.change_booking %}
+            <form method="post" action="{% url 'booking_pax_delete' b.pk ep.pk %}" onsubmit="return confirm('Remove?')">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="bi bi-x"></i></button></form>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% if perms.crm.change_booking %}
+    <hr>
+    <h6 class="text-muted mb-2"><i class="bi bi-plus-circle"></i> Add Pilgrim</h6>
+    <form method="post" action="{% url 'booking_pax_add' b.pk %}">{% csrf_token %}
+      <div class="row g-2">
+        <div class="col-md-6">
+          <label class="form-label small fw-bold">Passenger *</label>
+          {{ pax_form.passenger }}
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small fw-bold">Type</label>
+          {{ pax_form.pax_type }}
+        </div>
+        <div class="col-md-3 d-flex align-items-end">
+          <div class="form-check">{{ pax_form.bed }}<label class="form-check-label small ms-1">Needs bed</label></div>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label small fw-bold">Visa Number</label>
+          {{ pax_form.visa_number }}
+        </div>
+        <div class="col-md-6">
+          <label class="form-label small fw-bold">PNR</label>
+          {{ pax_form.pnr }}
+        </div>
+        <div class="col-12"><button class="btn btn-success btn-sm w-100"><i class="bi bi-plus"></i> Add Pilgrim</button></div>
+      </div>
+    </form>
+    {% endif %}
+  </div></div>
+</div>
+
+<!-- Hotels -->
+<div class="col-md-6">
+  <div class="card"><div class="card-header bg-white d-flex justify-content-between align-items-center">
+    <strong><i class="bi bi-building"></i> Accommodation</strong>
+    <span class="badge bg-secondary">Total Nights: {{ b.total_nights }}</span>
+  </div>
+  <div class="card-body">
+    <table class="table table-sm">
+      <thead><tr><th>Hotel</th><th>City</th><th>Confirm</th><th>Room</th><th>Beds</th><th>Meal</th><th>In</th><th>Out</th><th>N</th><th></th></tr></thead>
+      <tbody>
+      {% for h in b.hotels.all %}
+        <tr>
+          <td>{{ h.hotel.name }}</td><td>{{ h.hotel.city }}</td>
+          <td>{{ h.confirm_no|default:"-" }}</td>
+          <td>{{ h.room_label }}{% if h.room_notes %}<br><small class="text-muted">{{ h.room_notes }}</small>{% endif %}</td>
+          <td>{{ h.total_beds }}</td>
+          <td>{{ h.meal_plan }}</td>
+          <td>{{ h.check_in|date:"d/m/y" }}</td>
+          <td>{{ h.check_out|date:"d/m/y" }}</td>
+          <td>{{ h.nights }}</td>
+          <td>{% if perms.crm.change_booking %}<form method="post" action="{% url 'booking_hotel_delete' b.pk h.pk %}" onsubmit="return confirm('Remove?')">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="bi bi-x"></i></button></form>{% endif %}</td>
+        </tr>
+      {% empty %}<tr><td colspan="10" class="text-muted text-center">No hotels yet.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+    {% if perms.crm.change_booking %}
+    <hr>
+    <h6 class="text-muted mb-2"><i class="bi bi-plus-circle"></i> Add Hotel Stay</h6>
+    {% if hotel_form.fields.hotel.queryset.count == 0 %}
+      <div class="alert alert-warning small mb-2">
+        No hotels saved yet. <a href="{% url 'hotel_list' %}">Add hotels first →</a>
+      </div>
+    {% endif %}
+    <form method="post" action="{% url 'booking_hotel_add' b.pk %}">{% csrf_token %}
+      <div class="row g-2">
+        <div class="col-md-12">
+          <label class="form-label small fw-bold">Hotel * <a class="ms-2 small" href="{% url 'hotel_list' %}" target="_blank">+ manage hotels</a></label>
+          {{ hotel_form.hotel }}
+        </div>
+        <div class="col-md-6">
+          <label class="form-label small fw-bold">Room Type *</label>
+          {{ hotel_form.room_type }}
+        </div>
+        <div class="col-md-6">
+          <label class="form-label small fw-bold">Room Basis *</label>
+          {{ hotel_form.room_basis }}
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small fw-bold"># of Rooms</label>
+          {{ hotel_form.rooms_count }}
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small fw-bold">Occupants/Room</label>
+          {{ hotel_form.occupants }}
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small fw-bold">Meal Plan</label>
+          {{ hotel_form.meal_plan }}
+        </div>
+        <div class="col-md-3 d-flex align-items-end">
+          <div class="form-check">{{ hotel_form.extra_bed }}<label class="form-check-label small ms-1">Extra Bed</label></div>
+        </div>
+        <div class="col-md-12">
+          <label class="form-label small fw-bold">Room Notes (e.g. mother+daughter, no smoking)</label>
+          {{ hotel_form.room_notes }}
+        </div>
+        <div class="col-md-6">
+          <label class="form-label small fw-bold">Confirmation No</label>
+          {{ hotel_form.confirm_no }}
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small fw-bold">Check-in *</label>
+          {{ hotel_form.check_in }}
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small fw-bold">Check-out *</label>
+          {{ hotel_form.check_out }}
+        </div>
+        <div class="col-12"><button class="btn btn-success btn-sm w-100"><i class="bi bi-plus"></i> Add Hotel</button></div>
+      </div>
+    </form>
+    {% endif %}
+  </div></div>
+</div>
+</div>
+
+<div class="row g-3 mt-1">
+<!-- Flights -->
+<div class="col-md-7">
+  <div class="card"><div class="card-header bg-white"><strong><i class="bi bi-airplane"></i> Flights</strong></div>
+  <div class="card-body">
+    <table class="table table-sm">
+      <thead><tr><th>Direction</th><th>Airline</th><th>Flight</th><th>Sector</th><th>Departure</th><th>Arrival</th><th></th></tr></thead>
+      <tbody>
+      {% for f in b.flights.all %}
+        <tr>
+          <td>{{ f.get_direction_display }}</td>
+          <td>{{ f.airline.name|default:"-" }}</td>
+          <td>{{ f.flight_no }}</td><td>{{ f.sector }}</td>
+          <td>{{ f.departure|date:"d-M H:i" }}</td>
+          <td>{{ f.arrival|date:"d-M H:i" }}</td>
+          <td>{% if perms.crm.change_booking %}<form method="post" action="{% url 'booking_flight_delete' b.pk f.pk %}" onsubmit="return confirm('Remove?')">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="bi bi-x"></i></button></form>{% endif %}</td>
+        </tr>
+      {% empty %}<tr><td colspan="7" class="text-muted text-center">No flights yet.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+    {% if perms.crm.change_booking %}
+    <hr>
+    <h6 class="text-muted mb-2"><i class="bi bi-plus-circle"></i> Add Flight
+      <a href="{% url 'airline_list' %}" class="small ms-2" target="_blank"><i class="bi bi-plus-circle-dotted"></i> manage airlines</a>
+    </h6>
+    <form method="post" action="{% url 'booking_flight_add' b.pk %}">{% csrf_token %}
+      <div class="row g-2">
+        <div class="col-md-6">
+          <label class="form-label small fw-bold">Airline</label>
+          {{ flight_form.airline }}
+        </div>
+        <div class="col-md-6">
+          <label class="form-label small fw-bold">Direction *</label>
+          {{ flight_form.direction }}
+        </div>
+        <div class="col-md-6">
+          <label class="form-label small fw-bold">Flight No *</label>
+          {{ flight_form.flight_no }}
+        </div>
+        <div class="col-md-6">
+          <label class="form-label small fw-bold">Sector</label>
+          {{ flight_form.sector }}
+        </div>
+        <div class="col-md-6">
+          <label class="form-label small fw-bold">Departure (date & time)</label>
+          {{ flight_form.departure }}
+        </div>
+        <div class="col-md-6">
+          <label class="form-label small fw-bold">Arrival (date & time)</label>
+          {{ flight_form.arrival }}
+        </div>
+        <div class="col-12"><button class="btn btn-success btn-sm w-100"><i class="bi bi-plus"></i> Add Flight</button></div>
+      </div>
+    </form>
+    {% endif %}
+  </div></div>
+</div>
+
+<!-- Transport -->
+<div class="col-md-5">
+  <div class="card"><div class="card-header bg-white"><strong><i class="bi bi-bus-front"></i> Transport / Services</strong></div>
+  <div class="card-body">
+    <table class="table table-sm">
+      <thead><tr><th>Name</th><th>Mode</th><th>Type / Details</th><th>BRN</th><th></th></tr></thead>
+      <tbody>
+      {% for t in b.transports.all %}
+        <tr>
+          <td>{{ t.name }}</td><td>{{ t.get_transport_mode_display }}</td><td>{{ t.transport_type|default:"-" }}</td><td>{{ t.brn|default:"-" }}</td>
+          <td>{% if perms.crm.change_booking %}<form method="post" action="{% url 'booking_transport_delete' b.pk t.pk %}" onsubmit="return confirm('Remove?')">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="bi bi-x"></i></button></form>{% endif %}</td>
+        </tr>
+      {% empty %}<tr><td colspan="5" class="text-muted text-center">No transport added.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+    {% if perms.crm.change_booking %}
+    <hr>
+    <h6 class="text-muted mb-2"><i class="bi bi-plus-circle"></i> Add Transport</h6>
+    <form method="post" action="{% url 'booking_transport_add' b.pk %}">{% csrf_token %}
+      <div class="row g-2">
+        <div class="col-md-12">
+          <label class="form-label small fw-bold">Route / Name *</label>
+          {{ transport_form.name }}
+        </div>
+        <div class="col-md-12">
+          <label class="form-label small fw-bold">Mode *</label>
+          {{ transport_form.transport_mode }}
+        </div>
+        <div class="col-md-12">
+          <label class="form-label small fw-bold">Type / Details</label>
+          {{ transport_form.transport_type }}
+        </div>
+        <div class="col-md-12">
+          <label class="form-label small fw-bold">BRN</label>
+          {{ transport_form.brn }}
+        </div>
+        <div class="col-12"><button class="btn btn-success btn-sm w-100"><i class="bi bi-plus"></i> Add Transport</button></div>
+      </div>
+    </form>
+    {% endif %}
   </div></div>
 </div>
 </div>

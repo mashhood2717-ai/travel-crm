@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block page_title %}{{ title }}{% endblock %}
+{% block content %}
+<div class="card"><div class="card-body">
+<form method="post">{% csrf_token %}
+  <div class="mb-2"><label class="form-label small fw-bold">Hotel Name *</label>{{ form.name }}</div>
+  <div class="row g-2">
+    <div class="col-7 mb-2"><label class="form-label small fw-bold">City *</label>{{ form.city }}</div>
+    <div class="col-5 mb-2"><label class="form-label small fw-bold">Default Meal Plan</label>{{ form.default_meal_plan }}</div>
+  </div>
+  <div class="mb-2"><label class="form-label small fw-bold">Address</label>{{ form.address }}</div>
+  <div class="mb-2"><label class="form-label small fw-bold">Phone</label>{{ form.phone }}</div>
+  <div class="mb-2"><label class="form-label small fw-bold">Notes</label>{{ form.notes }}</div>
+  <button class="btn btn-success"><i class="bi bi-check-circle"></i> Save</button>
+  <a class="btn btn-outline-secondary" href="{% url 'hotel_list' %}">Cancel</a>
+</form>
+</div></div>
+{% endblock %}
+{% block extra_js %}
+<script>
+document.querySelectorAll('input,select,textarea').forEach(el=>{
+  if(!el.classList.contains('form-control')&&!el.classList.contains('form-select')&&!el.classList.contains('btn-close')){
+    if(el.tagName==='SELECT') el.classList.add('form-select','form-select-sm');
+    else el.classList.add('form-control','form-control-sm');
+  }
+});
+</script>
+{% endblock %}
