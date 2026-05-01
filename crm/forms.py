@@ -113,6 +113,17 @@ class BookingHotelForm(forms.ModelForm):
             "occupants": forms.NumberInput(attrs={"min": 1}),
         }
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["hotel"].queryset = Hotel.objects.filter(is_active=True)
+
+    def clean(self):
+        cleaned = super().clean()
+        ci, co = cleaned.get("check_in"), cleaned.get("check_out")
+        if ci and co and co < ci:
+            raise forms.ValidationError("Check-out date must be on or after check-in date.")
+        return cleaned
+
 
 class BookingFlightForm(forms.ModelForm):
     class Meta:
@@ -124,6 +135,10 @@ class BookingFlightForm(forms.ModelForm):
             "flight_no": forms.TextInput(attrs={"placeholder": "Flight # (e.g. SV-801)"}),
             "sector": forms.TextInput(attrs={"placeholder": "Sector (e.g. MUX-JED)"}),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["airline"].queryset = Airline.objects.filter(is_active=True)
 
 
 class BookingTransportForm(forms.ModelForm):
@@ -145,6 +160,10 @@ class BookingPassengerForm(forms.ModelForm):
             "visa_number": forms.TextInput(attrs={"placeholder": "Visa Number"}),
             "pnr": forms.TextInput(attrs={"placeholder": "PNR (optional)"}),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["passenger"].queryset = Passenger.objects.filter(is_active=True)
 
 
 class HotelForm(forms.ModelForm):

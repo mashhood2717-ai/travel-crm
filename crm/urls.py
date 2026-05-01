@@ -10,6 +10,7 @@ urlpatterns = [
     path("passengers/<int:pk>/", views.passenger_detail, name="passenger_detail"),
     path("passengers/<int:pk>/edit/", views.passenger_edit, name="passenger_edit"),
     path("passengers/<int:pk>/delete/", views.passenger_delete, name="passenger_delete"),
+    path("passengers/<int:pk>/restore/", views.passenger_restore, name="passenger_restore"),
     path("passengers/<int:pk>/upload/", views.document_upload, name="document_upload"),
     path("documents/<int:pk>/delete/", views.document_delete, name="document_delete"),
     path("passengers/export/excel/", views.export_passengers_excel, name="export_passengers_excel"),
@@ -30,6 +31,7 @@ urlpatterns = [
     path("bookings/<int:pk>/", views.booking_detail, name="booking_detail"),
     path("bookings/<int:pk>/edit/", views.booking_edit, name="booking_edit"),
     path("bookings/<int:pk>/delete/", views.booking_delete, name="booking_delete"),
+    path("bookings/<int:pk>/restore/", views.booking_restore, name="booking_restore"),
     path("bookings/<int:pk>/payment/", views.payment_create, name="payment_create"),
     path("bookings/<int:pk>/invoice/", views.booking_invoice_pdf, name="booking_invoice_pdf"),
     path("bookings/<int:pk>/voucher/", views.booking_voucher_pdf, name="booking_voucher_pdf"),
@@ -57,12 +59,14 @@ urlpatterns = [
     path("hotels/new/", views.hotel_create, name="hotel_create"),
     path("hotels/<int:pk>/edit/", views.hotel_edit, name="hotel_edit"),
     path("hotels/<int:pk>/delete/", views.hotel_delete, name="hotel_delete"),
+    path("hotels/<int:pk>/restore/", views.hotel_restore, name="hotel_restore"),
 
     # Airlines (master list)
     path("airlines/", views.airline_list, name="airline_list"),
     path("airlines/new/", views.airline_create, name="airline_create"),
     path("airlines/<int:pk>/edit/", views.airline_edit, name="airline_edit"),
     path("airlines/<int:pk>/delete/", views.airline_delete, name="airline_delete"),
+    path("airlines/<int:pk>/restore/", views.airline_restore, name="airline_restore"),
 
     # Reports
     path("reports/financial/", views.financial_report, name="financial_report"),

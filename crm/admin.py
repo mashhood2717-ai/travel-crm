@@ -8,9 +8,10 @@ from .models import (
 
 @admin.register(Passenger)
 class PassengerAdmin(admin.ModelAdmin):
-    list_display = ("full_name", "passport_number", "cnic", "mobile", "passport_expiry", "visa_expiry")
+    list_display = ("full_name", "passport_number", "cnic", "mobile", "passport_expiry", "visa_expiry", "is_active")
     search_fields = ("full_name", "passport_number", "cnic", "mobile", "email")
-    list_filter = ("gender", "passport_issue_country")
+    list_filter = ("is_active", "gender", "passport_issue_country")
+    readonly_fields = ("created_at", "updated_at", "created_by", "updated_by")
 
 
 class MembershipInline(admin.TabularInline):
@@ -59,9 +60,10 @@ class BookingPassengerInline(admin.TabularInline):
 
 @admin.register(Booking)
 class BookingAdmin(admin.ModelAdmin):
-    list_display = ("reference", "passenger", "service_type", "package_cost", "status", "travel_date")
-    list_filter = ("service_type", "status")
+    list_display = ("reference", "passenger", "service_type", "package_cost", "status", "travel_date", "is_active")
+    list_filter = ("is_active", "service_type", "status")
     search_fields = ("reference", "passenger__full_name", "passenger__passport_number")
+    readonly_fields = ("created_at", "updated_at", "created_by", "updated_by")
     inlines = [BookingPassengerInline, BookingHotelInline, BookingFlightInline, BookingTransportInline, PaymentInline]
 
 
@@ -80,12 +82,15 @@ class SupplierPaymentAdmin(admin.ModelAdmin):
 
 @admin.register(Hotel)
 class HotelAdmin(admin.ModelAdmin):
-    list_display = ("name", "city", "phone", "default_meal_plan")
-    list_filter = ("city", "default_meal_plan")
+    list_display = ("name", "city", "phone", "default_meal_plan", "is_active")
+    list_filter = ("is_active", "city", "default_meal_plan")
     search_fields = ("name", "city")
+    readonly_fields = ("created_at", "updated_at", "created_by", "updated_by")
 
 
 @admin.register(Airline)
 class AirlineAdmin(admin.ModelAdmin):
-    list_display = ("name", "code", "country", "phone")
+    list_display = ("name", "code", "country", "phone", "is_active")
+    list_filter = ("is_active",)
     search_fields = ("name", "code", "country")
+    readonly_fields = ("created_at", "updated_at", "created_by", "updated_by")

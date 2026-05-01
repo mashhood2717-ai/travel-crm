@@ -84,6 +84,9 @@ TRANSPORT_MODE_CHOICES = [
 class TimeStamped(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.ForeignKey('auth.User', null=True, blank=True, related_name="%(class)s_created", on_delete=models.SET_NULL)
+    updated_by = models.ForeignKey('auth.User', null=True, blank=True, related_name="%(class)s_updated", on_delete=models.SET_NULL)
+    is_active = models.BooleanField(default=True)
 
     class Meta:
         abstract = True
@@ -115,6 +118,7 @@ class Passenger(TimeStamped):
             models.Index(fields=["passport_number"]),
             models.Index(fields=["cnic"]),
             models.Index(fields=["mobile"]),
+            models.Index(fields=["is_active"]),
         ]
 
     def __str__(self):
@@ -216,6 +220,7 @@ class Supplier(TimeStamped):
 
     class Meta:
         ordering = ["name"]
+        indexes = [models.Index(fields=["is_active"])]
 
     def __str__(self):
         return self.name
@@ -254,10 +259,9 @@ class Booking(TimeStamped):
     whatsapp = models.CharField(max_length=30, blank=True)
     voucher_note = models.TextField(blank=True)
 
-    created_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL)
-
     class Meta:
         ordering = ["-created_at"]
+        indexes = [models.Index(fields=["is_active"])]
 
     def __str__(self):
         return f"{self.reference} - {self.passenger.full_name}"
@@ -495,6 +499,7 @@ class Hotel(TimeStamped):
     class Meta:
         ordering = ["city", "name"]
         unique_together = [("name", "city")]
+        indexes = [models.Index(fields=["is_active"])]
 
     def __str__(self):
         return f"{self.name} — {self.city}"
@@ -512,6 +517,7 @@ class Airline(TimeStamped):
 
     class Meta:
         ordering = ["name"]
+        indexes = [models.Index(fields=["is_active"])]
 
     def __str__(self):
         return self.name if not self.code else f"{self.name} ({self.code})"

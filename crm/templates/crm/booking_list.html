@@ -16,16 +16,24 @@
       <option value="">All Services</option>
       {% for code,label in service_choices %}<option value="{{ code }}" {% if service == code %}selected{% endif %}>{{ label }}</option>{% endfor %}
     </select>
+    {% if show_archived %}<input type="hidden" name="archived" value="1">{% endif %}
     <button class="btn btn-outline-primary"><i class="bi bi-filter"></i></button>
   </form>
-  {% if perms.crm.add_booking %}<a class="btn btn-primary" href="{% url 'booking_create' %}"><i class="bi bi-plus-lg"></i> New Booking</a>{% endif %}
+  <div class="d-flex gap-2">
+    {% if show_archived %}
+      <a class="btn btn-outline-secondary" href="{% url 'booking_list' %}"><i class="bi bi-arrow-left"></i> Active</a>
+    {% else %}
+      <a class="btn btn-outline-secondary" href="?archived=1"><i class="bi bi-archive"></i> Archived</a>
+    {% endif %}
+    {% if perms.crm.add_booking %}<a class="btn btn-primary" href="{% url 'booking_create' %}"><i class="bi bi-plus-lg"></i> New Booking</a>{% endif %}
+  </div>
 </div>
 <div class="card"><div class="card-body p-0">
 <table class="table table-hover table-sm mb-0">
-  <thead class="table-light"><tr><th>Ref</th><th>Customer</th><th>Service</th><th>Travel</th><th>Status</th><th class="text-end">Net</th><th class="text-end">Received</th><th class="text-end">Balance</th></tr></thead>
+  <thead class="table-light"><tr><th>Ref</th><th>Customer</th><th>Service</th><th>Travel</th><th>Status</th><th class="text-end">Net</th><th class="text-end">Received</th><th class="text-end">Balance</th><th></th></tr></thead>
   <tbody>
   {% for b in bookings %}
-    <tr>
+    <tr {% if not b.is_active %}class="table-warning"{% endif %}>
       <td><a href="{{ b.get_absolute_url }}">{{ b.reference }}</a></td>
       <td>{{ b.passenger.full_name }}</td>
       <td>{{ b.get_service_type_display }}</td>
@@ -34,8 +42,13 @@
       <td class="text-end">{{ b.net_total|floatformat:2 }}</td>
       <td class="text-end text-success">{{ b.total_received|floatformat:2 }}</td>
       <td class="text-end {% if b.balance_due > 0 %}text-danger fw-bold{% endif %}">{{ b.balance_due|floatformat:2 }}</td>
+      <td class="text-end">
+        {% if show_archived and perms.crm.change_booking %}
+          <form method="post" action="{% url 'booking_restore' b.pk %}" class="d-inline">{% csrf_token %}<button class="btn btn-sm btn-outline-success" title="Restore"><i class="bi bi-arrow-counterclockwise"></i></button></form>
+        {% endif %}
+      </td>
     </tr>
-  {% empty %}<tr><td colspan="8" class="text-muted text-center p-4">No bookings.</td></tr>{% endfor %}
+  {% empty %}<tr><td colspan="9" class="text-muted text-center p-4">{% if show_archived %}No archived bookings.{% else %}No bookings.{% endif %}</td></tr>{% endfor %}
   </tbody>
 </table>
 </div></div>

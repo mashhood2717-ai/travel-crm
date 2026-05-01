@@ -9,7 +9,6 @@ from django.http import HttpResponse, FileResponse
 from django.shortcuts import render, get_object_or_404, redirect
 from django.utils import timezone
 from django.views.decorators.http import require_POST
-
 from .models import (
     Passenger, Group, GroupMembership, Document,
     Booking, Payment, Supplier, SupplierPayment, SERVICE_CHOICES,
@@ -21,6 +20,31 @@ from .forms import (
     BookingHotelForm, BookingFlightForm, BookingTransportForm, BookingPassengerForm,
     HotelForm, AirlineForm,
 )
+
+
+def _save_with_audit(form, user, commit=True):
+    """Save a ModelForm and stamp created_by/updated_by from the request user."""
+    obj = form.save(commit=False)
+    if not obj.pk and hasattr(obj, "created_by_id") and not obj.created_by_id:
+        obj.created_by = user
+    if hasattr(obj, "updated_by_id"):
+        obj.updated_by = user
+    if commit:
+        obj.save()
+    return obj
+
+
+def _set_active(request, model, pk, active, redirect_name, perm):
+    if not request.user.has_perm(perm):
+        messages.error(request, "Permission denied.")
+        return redirect(redirect_name)
+    obj = get_object_or_404(model, pk=pk)
+    obj.is_active = active
+    if hasattr(obj, "updated_by_id"):
+        obj.updated_by = request.user
+    obj.save(update_fields=["is_active", "updated_by", "updated_at"] if hasattr(obj, "updated_by_id") else ["is_active", "updated_at"])
+    messages.success(request, "Restored." if active else "Archived. Visit the Archived list to restore.")
+    return redirect(redirect_name)
 
 
 # ---------- Dashboard ----------
@@ -76,7 +100,8 @@ def dashboard(request):
 @login_required
 def passenger_list(request):
     q = (request.GET.get("q") or "").strip()
-    qs = Passenger.objects.all()
+    show_archived = request.GET.get("archived") == "1"
+    qs = Passenger.objects.filter(is_active=not show_archived)
     if q:
         qs = qs.filter(
             Q(full_name__icontains=q)
@@ -85,7 +110,7 @@ def passenger_list(request):
             | Q(mobile__icontains=q)
             | Q(email__icontains=q)
         )
-    return render(request, "crm/passenger_list.html", {"passengers": qs[:500], "q": q, "total": qs.count()})
+    return render(request, "crm/passenger_list.html", {"passengers": qs[:500], "q": q, "total": qs.count(), "show_archived": show_archived})
 
 
 @login_required
@@ -93,7 +118,7 @@ def passenger_list(request):
 def passenger_create(request):
     form = PassengerForm(request.POST or None)
     if form.is_valid():
-        p = form.save()
+        p = _save_with_audit(form, request.user)
         messages.success(request, "Passenger created.")
         return redirect(p.get_absolute_url())
     return render(request, "crm/passenger_form.html", {"form": form, "title": "New Passenger"})
@@ -115,7 +140,7 @@ def passenger_edit(request, pk):
     p = get_object_or_404(Passenger, pk=pk)
     form = PassengerForm(request.POST or None, instance=p)
     if form.is_valid():
-        form.save()
+        _save_with_audit(form, request.user)
         messages.success(request, "Passenger updated.")
         return redirect(p.get_absolute_url())
     return render(request, "crm/passenger_form.html", {"form": form, "title": "Edit Passenger"})
@@ -125,10 +150,14 @@ def passenger_edit(request, pk):
 @permission_required("crm.delete_passenger", raise_exception=True)
 @require_POST
 def passenger_delete(request, pk):
-    p = get_object_or_404(Passenger, pk=pk)
-    p.delete()
-    messages.success(request, "Passenger deleted.")
-    return redirect("passenger_list")
+    return _set_active(request, Passenger, pk, False, "passenger_list", "crm.delete_passenger")
+
+
+@login_required
+@permission_required("crm.change_passenger", raise_exception=True)
+@require_POST
+def passenger_restore(request, pk):
+    return _set_active(request, Passenger, pk, True, "passenger_list", "crm.change_passenger")
 
 
 @login_required
@@ -239,7 +268,8 @@ def booking_list(request):
     q = (request.GET.get("q") or "").strip()
     status = request.GET.get("status") or ""
     service = request.GET.get("service") or ""
-    qs = Booking.objects.select_related("passenger", "group")
+    show_archived = request.GET.get("archived") == "1"
+    qs = Booking.objects.select_related("passenger", "group").filter(is_active=not show_archived)
     if q:
         qs = qs.filter(
             Q(reference__icontains=q)
@@ -252,18 +282,17 @@ def booking_list(request):
         qs = qs.filter(service_type=service)
     return render(request, "crm/booking_list.html", {
         "bookings": qs[:500], "q": q, "status": status, "service": service,
-        "service_choices": SERVICE_CHOICES,
+        "service_choices": SERVICE_CHOICES, "show_archived": show_archived,
     })
 
 
+@login_required
 @login_required
 @permission_required("crm.add_booking", raise_exception=True)
 def booking_create(request):
     form = BookingForm(request.POST or None)
     if form.is_valid():
-        b = form.save(commit=False)
-        b.created_by = request.user
-        b.save()
+        b = _save_with_audit(form, request.user)
         messages.success(request, f"Booking {b.reference} created.")
         return redirect(b.get_absolute_url())
     return render(request, "crm/booking_form.html", {"form": form, "title": "New Booking"})
@@ -289,7 +318,7 @@ def booking_edit(request, pk):
     b = get_object_or_404(Booking, pk=pk)
     form = BookingForm(request.POST or None, instance=b)
     if form.is_valid():
-        form.save()
+        _save_with_audit(form, request.user)
         return redirect(b.get_absolute_url())
     return render(request, "crm/booking_form.html", {"form": form, "title": "Edit Booking"})
 
@@ -298,8 +327,14 @@ def booking_edit(request, pk):
 @permission_required("crm.delete_booking", raise_exception=True)
 @require_POST
 def booking_delete(request, pk):
-    get_object_or_404(Booking, pk=pk).delete()
-    return redirect("booking_list")
+    return _set_active(request, Booking, pk, False, "booking_list", "crm.delete_booking")
+
+
+@login_required
+@permission_required("crm.change_booking", raise_exception=True)
+@require_POST
+def booking_restore(request, pk):
+    return _set_active(request, Booking, pk, True, "booking_list", "crm.change_booking")
 
 
 @login_required
@@ -873,11 +908,12 @@ def _table_style(header=False):
 @login_required
 def hotel_list(request):
     q = (request.GET.get("q") or "").strip()
-    qs = Hotel.objects.all()
+    show_archived = request.GET.get("archived") == "1"
+    qs = Hotel.objects.filter(is_active=not show_archived)
     if q:
         qs = qs.filter(Q(name__icontains=q) | Q(city__icontains=q))
     form = HotelForm()
-    return render(request, "crm/hotel_list.html", {"hotels": qs, "q": q, "form": form})
+    return render(request, "crm/hotel_list.html", {"hotels": qs, "q": q, "form": form, "show_archived": show_archived})
 
 
 @login_required
@@ -909,13 +945,14 @@ def hotel_edit(request, pk):
 @permission_required("crm.delete_hotel", raise_exception=True)
 @require_POST
 def hotel_delete(request, pk):
-    h = get_object_or_404(Hotel, pk=pk)
-    try:
-        h.delete()
-        messages.success(request, "Hotel deleted.")
-    except Exception:
-        messages.error(request, "Cannot delete: hotel is linked to bookings.")
-    return redirect("hotel_list")
+    return _set_active(request, Hotel, pk, False, "hotel_list", "crm.delete_hotel")
+
+
+@login_required
+@permission_required("crm.change_hotel", raise_exception=True)
+@require_POST
+def hotel_restore(request, pk):
+    return _set_active(request, Hotel, pk, True, "hotel_list", "crm.change_hotel")
 
 
 # ---------- Airlines ----------
@@ -923,11 +960,12 @@ def hotel_delete(request, pk):
 @login_required
 def airline_list(request):
     q = (request.GET.get("q") or "").strip()
-    qs = Airline.objects.all()
+    show_archived = request.GET.get("archived") == "1"
+    qs = Airline.objects.filter(is_active=not show_archived)
     if q:
         qs = qs.filter(Q(name__icontains=q) | Q(code__icontains=q) | Q(country__icontains=q))
     form = AirlineForm()
-    return render(request, "crm/airline_list.html", {"airlines": qs, "q": q, "form": form})
+    return render(request, "crm/airline_list.html", {"airlines": qs, "q": q, "form": form, "show_archived": show_archived})
 
 
 @login_required
@@ -959,10 +997,11 @@ def airline_edit(request, pk):
 @permission_required("crm.delete_airline", raise_exception=True)
 @require_POST
 def airline_delete(request, pk):
-    a = get_object_or_404(Airline, pk=pk)
-    try:
-        a.delete()
-        messages.success(request, "Airline deleted.")
-    except Exception:
-        messages.error(request, "Cannot delete: airline is linked to flights.")
-    return redirect("airline_list")
+    return _set_active(request, Airline, pk, False, "airline_list", "crm.delete_airline")
+
+
+@login_required
+@permission_required("crm.change_airline", raise_exception=True)
+@require_POST
+def airline_restore(request, pk):
+    return _set_active(request, Airline, pk, True, "airline_list", "crm.change_airline")
