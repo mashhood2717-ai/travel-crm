@@ -22,6 +22,7 @@ urlpatterns = [
     path("groups/<int:pk>/", views.group_detail, name="group_detail"),
     path("groups/<int:pk>/edit/", views.group_edit, name="group_edit"),
     path("groups/<int:pk>/delete/", views.group_delete, name="group_delete"),
+    path("groups/<int:pk>/restore/", views.group_restore, name="group_restore"),
     path("groups/<int:pk>/add-member/", views.group_add_member, name="group_add_member"),
     path("groups/<int:pk>/remove-member/<int:passenger_id>/", views.group_remove_member, name="group_remove_member"),
 
@@ -52,6 +53,8 @@ urlpatterns = [
     path("suppliers/new/", views.supplier_create, name="supplier_create"),
     path("suppliers/<int:pk>/", views.supplier_detail, name="supplier_detail"),
     path("suppliers/<int:pk>/edit/", views.supplier_edit, name="supplier_edit"),
+    path("suppliers/<int:pk>/delete/", views.supplier_delete, name="supplier_delete"),
+    path("suppliers/<int:pk>/restore/", views.supplier_restore, name="supplier_restore"),
     path("suppliers/<int:pk>/pay/", views.supplier_payment_create, name="supplier_payment_create"),
 
     # Hotels (master list)

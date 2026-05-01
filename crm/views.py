@@ -193,10 +193,11 @@ def document_delete(request, pk):
 @login_required
 def group_list(request):
     q = (request.GET.get("q") or "").strip()
-    qs = Group.objects.all()
+    show_archived = request.GET.get("archived") == "1"
+    qs = Group.objects.filter(is_active=not show_archived)
     if q:
         qs = qs.filter(Q(name__icontains=q) | Q(destination__icontains=q))
-    return render(request, "crm/group_list.html", {"groups": qs, "q": q})
+    return render(request, "crm/group_list.html", {"groups": qs, "q": q, "show_archived": show_archived})
 
 
 @login_required
@@ -204,7 +205,7 @@ def group_list(request):
 def group_create(request):
     form = GroupForm(request.POST or None)
     if form.is_valid():
-        g = form.save()
+        g = _save_with_audit(form, request.user)
         messages.success(request, "Group created.")
         return redirect(g.get_absolute_url())
     return render(request, "crm/group_form.html", {"form": form, "title": "New Group"})
@@ -223,7 +224,7 @@ def group_edit(request, pk):
     g = get_object_or_404(Group, pk=pk)
     form = GroupForm(request.POST or None, instance=g)
     if form.is_valid():
-        form.save()
+        _save_with_audit(form, request.user)
         return redirect(g.get_absolute_url())
     return render(request, "crm/group_form.html", {"form": form, "title": "Edit Group"})
 
@@ -232,8 +233,14 @@ def group_edit(request, pk):
 @permission_required("crm.delete_group", raise_exception=True)
 @require_POST
 def group_delete(request, pk):
-    get_object_or_404(Group, pk=pk).delete()
-    return redirect("group_list")
+    return _set_active(request, Group, pk, False, "group_list", "crm.delete_group")
+
+
+@login_required
+@permission_required("crm.change_group", raise_exception=True)
+@require_POST
+def group_restore(request, pk):
+    return _set_active(request, Group, pk, True, "group_list", "crm.change_group")
 
 
 @login_required
@@ -358,7 +365,9 @@ def payment_create(request, pk):
 
 @login_required
 def supplier_list(request):
-    return render(request, "crm/supplier_list.html", {"suppliers": Supplier.objects.all()})
+    show_archived = request.GET.get("archived") == "1"
+    suppliers = Supplier.objects.filter(is_active=not show_archived)
+    return render(request, "crm/supplier_list.html", {"suppliers": suppliers, "show_archived": show_archived})
 
 
 @login_required
@@ -366,7 +375,7 @@ def supplier_list(request):
 def supplier_create(request):
     form = SupplierForm(request.POST or None)
     if form.is_valid():
-        s = form.save()
+        s = _save_with_audit(form, request.user)
         return redirect("supplier_detail", pk=s.pk)
     return render(request, "crm/supplier_form.html", {"form": form, "title": "New Supplier"})
 
@@ -384,9 +393,23 @@ def supplier_edit(request, pk):
     s = get_object_or_404(Supplier, pk=pk)
     form = SupplierForm(request.POST or None, instance=s)
     if form.is_valid():
-        form.save()
+        _save_with_audit(form, request.user)
         return redirect("supplier_detail", pk=s.pk)
     return render(request, "crm/supplier_form.html", {"form": form, "title": "Edit Supplier"})
+
+
+@login_required
+@permission_required("crm.delete_supplier", raise_exception=True)
+@require_POST
+def supplier_delete(request, pk):
+    return _set_active(request, Supplier, pk, False, "supplier_list", "crm.delete_supplier")
+
+
+@login_required
+@permission_required("crm.change_supplier", raise_exception=True)
+@require_POST
+def supplier_restore(request, pk):
+    return _set_active(request, Supplier, pk, True, "supplier_list", "crm.change_supplier")
 
 
 @login_required
@@ -922,7 +945,7 @@ def hotel_list(request):
 def hotel_create(request):
     form = HotelForm(request.POST)
     if form.is_valid():
-        form.save()
+        _save_with_audit(form, request.user)
         messages.success(request, "Hotel added.")
     else:
         messages.error(request, "Could not add hotel: " + " | ".join(f"{k}: {','.join(v)}" for k, v in form.errors.items()))
@@ -935,7 +958,7 @@ def hotel_edit(request, pk):
     h = get_object_or_404(Hotel, pk=pk)
     form = HotelForm(request.POST or None, instance=h)
     if form.is_valid():
-        form.save()
+        _save_with_audit(form, request.user)
         messages.success(request, "Hotel updated.")
         return redirect("hotel_list")
     return render(request, "crm/hotel_form.html", {"form": form, "h": h, "title": "Edit Hotel"})
@@ -974,7 +997,7 @@ def airline_list(request):
 def airline_create(request):
     form = AirlineForm(request.POST)
     if form.is_valid():
-        form.save()
+        _save_with_audit(form, request.user)
         messages.success(request, "Airline added.")
     else:
         messages.error(request, "Could not add airline: " + " | ".join(f"{k}: {','.join(v)}" for k, v in form.errors.items()))
@@ -987,7 +1010,7 @@ def airline_edit(request, pk):
     a = get_object_or_404(Airline, pk=pk)
     form = AirlineForm(request.POST or None, instance=a)
     if form.is_valid():
-        form.save()
+        _save_with_audit(form, request.user)
         messages.success(request, "Airline updated.")
         return redirect("airline_list")
     return render(request, "crm/airline_form.html", {"form": form, "a": a, "title": "Edit Airline"})
